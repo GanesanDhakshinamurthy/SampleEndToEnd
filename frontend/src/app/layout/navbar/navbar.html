@@ -1,0 +1,21 @@
+<nav class="bg-indigo-700 text-white shadow-lg">
+  <div class="max-w-6xl mx-auto px-4">
+    <div class="flex justify-between items-center h-16">
+      <a routerLink="/" class="text-xl font-bold tracking-tight">SampleE2E</a>
+      <div class="flex space-x-6">
+        <a routerLink="/" routerLinkActive="bg-indigo-900" [routerLinkActiveOptions]="{exact: true}"
+           class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600 transition-colors">
+          Home
+        </a>
+        <a routerLink="/about" routerLinkActive="bg-indigo-900"
+           class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600 transition-colors">
+          About
+        </a>
+        <a routerLink="/sample-api" routerLinkActive="bg-indigo-900"
+           class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600 transition-colors">
+          Sample API
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>

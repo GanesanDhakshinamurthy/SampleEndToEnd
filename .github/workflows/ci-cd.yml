@@ -1,0 +1,89 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/sample-end-to-end-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/sample-end-to-end-frontend
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+
+  deploy:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+      - name: Update image tags
+        working-directory: k8s/overlays/prod
+        run: |
+          sed -i "s/newTag: latest/newTag: ${{ github.sha }}/g" kustomization.yaml
+
+      - name: Deploy to k3s
+        run: kubectl apply -k k8s/overlays/prod
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n sample-app --timeout=120s
+          kubectl rollout status deployment/frontend -n sample-app --timeout=120s
