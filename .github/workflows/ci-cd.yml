@@ -5,14 +5,26 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/sample-end-to-end-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/sample-end-to-end-frontend
 
 jobs:
+  set-env:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ steps.lower.outputs.backend }}
+      frontend_image: ${{ steps.lower.outputs.frontend }}
+    steps:
+      - id: lower
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "backend=ghcr.io/${OWNER_LC}/sample-end-to-end-backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=ghcr.io/${OWNER_LC}/sample-end-to-end-frontend" >> "$GITHUB_OUTPUT"
+
   build-backend:
+    needs: [set-env]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,12 +43,13 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ${{ env.BACKEND_IMAGE }}:latest
-            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ needs.set-env.outputs.backend_image }}:latest
+            ${{ needs.set-env.outputs.backend_image }}:${{ github.sha }}
 
   build-frontend:
+    needs: [set-env]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,15 +68,15 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ needs.set-env.outputs.frontend_image }}:latest
+            ${{ needs.set-env.outputs.frontend_image }}:${{ github.sha }}
 
   deploy:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
